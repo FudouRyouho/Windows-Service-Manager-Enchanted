@@ -1,0 +1,90 @@
+use windows::{
+    core::*,
+    Win32::Foundation::*,
+    Win32::System::Services::*,
+    Win32::Security::*,
+};
+
+fn list_services(status: &str) -> Result<Vec<String>> {
+    unsafe {
+        let sc_manager = OpenSCManagerA(None, None, SC_MANAGER_ENUMERATE_SERVICE)?;
+
+        let mut bytes_needed = 0;
+        let mut services_returned = 0;
+        let mut resume_handle = 0;
+
+        let mut service_state: ENUM_SERVICE_STATE;
+
+        if status == "active" {
+        service_state = SERVICE_ACTIVE;} 
+        else if status == "inactive" {
+        service_state = SERVICE_INACTIVE;}
+        else {
+        service_state = SERVICE_STATE_ALL;}
+
+        // Primer llamado para obtener el buffer de memoria.
+        let _ = EnumServicesStatusExA(
+            sc_manager,
+            SC_ENUM_PROCESS_INFO,
+            SERVICE_WIN32,
+            service_state,
+            None,
+            &mut bytes_needed,
+            &mut services_returned,
+            Some(&mut resume_handle),
+            None,
+        );
+
+        // Asignamo el buffer :v
+        let mut buffer = vec![0u8; bytes_needed as usize];
+
+        // Segundo utilizando el buffer para obtener datos actuales.
+        EnumServicesStatusExA(
+            sc_manager,
+            SC_ENUM_PROCESS_INFO,
+            SERVICE_WIN32,
+            service_state,
+            Some(&mut buffer),
+            &mut bytes_needed,
+            &mut services_returned,
+            Some(&mut resume_handle),
+            None,
+        )?;
+
+        let services = std::slice::from_raw_parts(
+            buffer.as_ptr() as *const ENUM_SERVICE_STATUS_PROCESSA,
+            services_returned as usize,
+        );
+
+        
+        let service_names = services
+            .iter()
+            .map(|service| {
+                let name = std::ffi::CStr::from_ptr(service.lpServiceName.0 as *const i8)
+                    .to_string_lossy()
+                    .into_owned();
+                name
+            })
+            .collect();
+
+
+        // Esta madre no se si funciona :v
+        CloseServiceHandle(sc_manager);
+
+        Ok(service_names)
+    }
+}
+
+fn main() -> Result<()> {
+    match list_services("inactive") {
+        Ok(service_names) => {
+            println!("Successfully listed services:");
+            for service in service_names {
+                println!("Service: {}", service);
+            }
+        },
+        Err(e) => println!("Failed to list services: {:?}", e),
+    }
+
+    Ok(())
+}

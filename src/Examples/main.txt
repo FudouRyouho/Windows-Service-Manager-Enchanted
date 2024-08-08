@@ -1,0 +1,120 @@
+use iced::{Element, Sandbox, Settings};
+use winapi::um::winsvc;
+
+mod services;
+mod ui;
+mod utils;
+
+struct WindowsServiceManager {
+    services: Vec<services::WindowsService>,
+    search_query: String,
+    selected_service: Option<String>,
+    active_profiles: Vec<services::ServiceProfile>,
+}
+
+#[derive(Debug, Clone)]
+enum Message {
+    SearchQueryChanged(String),
+    ServiceSelected(String),
+    StartService,
+    StopService,
+    CreateProfile,
+    DeleteProfile(usize),
+    ViewLogs,
+    // Añade más mensajes según sea necesario
+}
+
+impl Sandbox for WindowsServiceManager {
+    type Message = Message;
+
+    fn new() -> Self {
+        Self {
+            services: services::get_all_services(),
+            search_query: String::new(),
+            selected_service: None,
+            active_profiles: Vec::new(),
+        }
+    }
+
+    fn title(&self) -> String {
+        String::from("Administrador de Servicios de Windows")
+    }
+
+    fn update(&mut self, message: Message) {
+        match message {
+            Message::SearchQueryChanged(query) => {
+                self.search_query = query;
+                // Implementar lógica de búsqueda
+            }
+            Message::ServiceSelected(service_name) => {
+                self.selected_service = Some(service_name);
+            }
+            Message::StartService => {
+                if let Some(service) = &self.selected_service {
+                    services::start_service(service);
+                }
+            }
+            Message::StopService => {
+                if let Some(service) = &self.selected_service {
+                    services::stop_service(service);
+                }
+            }
+            // Implementar otros manejadores de mensajes
+        }
+    }
+
+    fn view(&self) -> Element<Message> {
+        // Implementar la interfaz de usuario usando widgets de Iced
+        ui::build_ui(self)
+    }
+}
+
+fn main() -> iced::Result {
+    WindowsServiceManager::run(Settings::default())
+}
+
+// En services.rs
+mod services {
+    use winapi::um::winsvc;
+
+    pub struct WindowsService {
+        // Definir la estructura del servicio
+    }
+
+    pub struct ServiceProfile {
+        // Definir la estructura del perfil de servicio
+    }
+
+    pub fn get_all_services() -> Vec<WindowsService> {
+        // Implementar la obtención de todos los servicios
+        unimplemented!()
+    }
+
+    pub fn start_service(service_name: &str) {
+        // Implementar la lógica para iniciar un servicio
+        unimplemented!()
+    }
+
+    pub fn stop_service(service_name: &str) {
+        // Implementar la lógica para detener un servicio
+        unimplemented!()
+    }
+
+    // Añadir más funciones relacionadas con servicios
+}
+
+// En ui.rs
+mod ui {
+    use super::*;
+    use iced::widget::{button, column, row, text, text_input};
+
+    pub fn build_ui(state: &WindowsServiceManager) -> Element<Message> {
+        // Implementar la construcción de la interfaz de usuario
+        unimplemented!()
+    }
+}
+
+// En utils.rs
+mod utils {
+    // Funciones de utilidad, como manejo de logs, permisos, etc.
+}

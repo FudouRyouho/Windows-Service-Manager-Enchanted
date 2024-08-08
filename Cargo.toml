@@ -1,0 +1,21 @@
+[package]
+name = "Windows-Service-Manager-Enchanted"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+windows = { version = "0.58.0", features = [
+    "Win32_System_Services",
+    "Win32_Security",
+    "Win32_System_WindowsProgramming",
+    "Win32_Foundation",
+    "Win32_System_Registry",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_Threading",
+    "Win32_UI_WindowsAndMessaging",
+] }
+serde = { version = "1", features = ["derive"] }
+colored = "2.1.0"
+fuzzy-matcher = "*"
+clap = { version = "4.5.11", features = ["derive"] }
+clap_derive = "4.5.11"

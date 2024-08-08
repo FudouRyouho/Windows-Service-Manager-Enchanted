@@ -1,0 +1,35 @@
+use winapi::um::winsvc::{OpenSCManagerW, OpenServiceW, StartServiceW, SC_MANAGER_ALL_ACCESS, SERVICE_ALL_ACCESS};
+use winapi::um::winnt::LPWSTR;
+use std::ptr::null_mut;
+use std::ffi::OsStr;
+use std::os::windows::ffi::OsStrExt;
+
+fn start_service(service_name: &str) -> Result<(), String> {
+    let service_name_wide: Vec<u16> = OsStr::new(service_name).encode_wide().chain(Some(0)).collect();
+    
+    unsafe {
+        let sc_manager = OpenSCManagerW(null_mut(), null_mut(), SC_MANAGER_ALL_ACCESS);
+        if sc_manager.is_null() {
+            return Err("Failed to open SCM".to_string());
+        }
+
+        let service = OpenServiceW(sc_manager, service_name_wide.as_ptr(), SERVICE_ALL_ACCESS);
+        if service.is_null() {
+            return Err("Failed to open service".to_string());
+        }
+
+        let result = StartServiceW(service, 0, null_mut() as *mut LPWSTR);
+        if result == 0 {
+            return Err("Failed to start service".to_string());
+        }
+
+        Ok(())
+    }
+}
+
+fn main() {
+    match start_service("MyService") {
+        Ok(_) => println!("Service started successfully"),
+        Err(e) => println!("Failed to start service: {}", e),
+    }
+}

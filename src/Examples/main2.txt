@@ -1,0 +1,175 @@
+use std::collections::HashMap;
+use std::ffi::CStr;
+use windows::{core::*, Win32::Foundation::*, Win32::Security::*, Win32::System::Services::*};
+
+#[derive(Debug)]
+struct ServiceInfo {
+    name: String,
+    display_name: String,
+    status: SERVICE_STATUS_PROCESS,
+    handle: Option<SC_HANDLE>,
+}
+
+impl ServiceInfo {
+    fn new(name: String, display_name: String, status: SERVICE_STATUS_PROCESS) -> Self {
+        ServiceInfo {
+            name,
+            display_name,
+            status,
+            handle: None,
+        }
+    }
+}
+
+struct ServiceManager {
+    sc_manager: SC_HANDLE,
+    services: HashMap<String, ServiceInfo>,
+}
+
+impl ServiceManager {
+    fn new() -> Result<Self> {
+        let sc_manager = unsafe { OpenSCManagerA(None, None, SC_MANAGER_ALL_ACCESS)? };
+        Ok(ServiceManager {
+            sc_manager,
+            services: HashMap::new(),
+        })
+    }
+
+    fn refresh_services(&mut self) -> Result<()> {
+        unsafe {
+            let mut bytes_needed = 0;
+            let mut services_returned = 0;
+            let mut resume_handle = 0;
+
+            // First call to get required buffer size
+            let _ = EnumServicesStatusExA(
+                self.sc_manager,
+                SC_ENUM_PROCESS_INFO,
+                SERVICE_WIN32,
+                SERVICE_STATE_ALL,
+                None,
+                &mut bytes_needed,
+                &mut services_returned,
+                Some(&mut resume_handle),
+                None,
+            );
+
+            // Allocate buffer
+            let mut buffer = vec![0u8; bytes_needed as usize];
+
+            // Second call to get actual data
+            EnumServicesStatusExA(
+                self.sc_manager,
+                SC_ENUM_PROCESS_INFO,
+                SERVICE_WIN32,
+                SERVICE_STATE_ALL,
+                Some(&mut buffer),
+                &mut bytes_needed,
+                &mut services_returned,
+                Some(&mut resume_handle),
+                None,
+            )?;
+
+            let services = std::slice::from_raw_parts(
+                buffer.as_ptr() as *const ENUM_SERVICE_STATUS_PROCESSA,
+                services_returned as usize,
+            );
+
+            self.services.clear();
+            for service in services {
+                let name = CStr::from_ptr(service.lpServiceName.0 as *const i8)
+                    .to_string_lossy()
+                    .into_owned();
+                let display_name = CStr::from_ptr(service.lpDisplayName.0 as *const i8)
+                    .to_string_lossy()
+                    .into_owned();
+                self.services.insert(
+                    name.clone(),
+                    ServiceInfo::new(name, display_name, service.ServiceStatusProcess),
+                );
+            }
+        }
+        Ok(())
+    }
+
+    fn start_service(&mut self, service_name: &str) -> Result<()> {
+        if let Some(service) = self.services.get_mut(service_name) {
+            let service_handle = unsafe {
+                OpenServiceA(
+                    self.sc_manager,
+                    PCSTR(service_name.as_ptr() as *const u8),
+                    SERVICE_START,
+                )?
+            };
+            service.handle = Some(service_handle);
+
+            unsafe {
+                StartServiceA(service_handle, None)?;
+            }
+        } else {
+            //    return Err(Error::new(E_FAIL, HSTRING::from("Service not found")));
+        }
+        Ok(())
+    }
+
+    fn stop_service(&mut self, service_name: &str) -> Result<()> {
+        if let Some(service) = self.services.get_mut(service_name) {
+            let service_handle = service.handle.unwrap_or_else(|| unsafe {
+                OpenServiceA(
+                    self.sc_manager,
+                    PCSTR(service_name.as_ptr() as *const u8),
+                    SERVICE_STOP,
+                )
+                .unwrap()
+            });
+
+            unsafe {
+                //       let mut service_status = SERVICE_STATUS::default();
+                //        ControlService(service_handle, SERVICE_CONTROL_STOP, &mut service_status)?;
+                //       service.status.ServiceStatus = service_status;
+            }
+        } else {
+            //return Err(Error::new(E_FAIL, HSTRING::from("Service not found")));
+        }
+        Ok(())
+    }
+}
+
+impl Drop for ServiceManager {
+    fn drop(&mut self) {
+        unsafe {
+            for service in self.services.values() {
+                if let Some(handle) = service.handle {
+                    CloseServiceHandle(handle);
+                }
+            }
+            CloseServiceHandle(self.sc_manager);
+        }
+    }
+}
+
+fn main() -> Result<()> {
+    let mut manager = ServiceManager::new()?;
+    manager.refresh_services()?;
+
+    println!("Services:");
+    for (name, info) in &manager.services {
+        let status_str = match info.status.dwCurrentState {
+            SERVICE_CONTINUE_PENDING => "continuar pendiente",
+            SERVICE_PAUSED => "pausado",
+            SERVICE_PAUSE_PENDING => "pausa pendiente",
+            SERVICE_RUNNING => "ejecutándose",
+            SERVICE_START_PENDING => "inicio pendiente",
+            SERVICE_STOP_PENDING => "detener pendiente",
+            SERVICE_STOPPED => "detenido",
+            _ => "desconocido",
+        };
+        println!("{}: {} --> {:?}", name, info.display_name, status_str);
+    }
+
+    // Ejemplo de uso
+    // manager.start_service("SampleService")?;
+    // manager.stop_service("AnotherService")?;
+
+    Ok(())
+}

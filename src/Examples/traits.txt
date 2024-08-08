@@ -1,0 +1,16 @@
+use std::ffi::CString;
+use winapi::um::winuser::{MessageBoxA, MB_OK};
+
+fn main() {
+    let message = CString::new("Hola desde Rust!").unwrap();
+    let title = CString::new("Mensaje").unwrap();
+    
+    unsafe {
+        MessageBoxA(
+            std::ptr::null_mut(),
+            message.as_ptr(),
+            title.as_ptr(),
+            MB_OK
+        );
+    }
+}
